@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 	"wq-service/cos"
 )
@@ -19,22 +21,40 @@ type RoomInfo struct {
 	LiveTime    string `json:"live_time"`
 	Description string `json:"description"`
 	UserCover   string `json:"user_cover"`
+	LiveStatus  int    `json:"live_status"`
 }
 
 var streamApi = "https://api.live.bilibili.com/room/v1/Room/playUrl"
 var infoApi = "https://api.live.bilibili.com/room/v1/Room/get_info"
 var userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
+var reconnect = 0
+var lck sync.Mutex
 
 // DoRecord
 // @Description: 录制视频
 // @param roomId 	房间号
 func DoRecord(roomId int) {
-	info := info(roomId)
-	url := getVideoUrl(roomId)
+	lck.Lock()
+	if reconnect == 0 {
+		log.Infof("🟢 [直播开始] %d", roomId)
+		AsyncFun(roomId)
+	}
+	lck.Unlock()
+}
 
-	directory := "./output"
-	fileName := directory + "/🎥 [" + info.Title + "] - " + info.LiveTime + ".flv"
-	download(url, directory, fileName, info)
+func AsyncFun(roomId int) {
+	info := info(roomId)
+	if info.LiveStatus == 1 {
+		url := getVideoUrl(roomId)
+		directory := "./output"
+		fileName := directory + "/[" + info.Title + "]_" + info.LiveTime + ".flv"
+		fileName = strings.ReplaceAll(fileName, " ", "_")
+		fileName = strings.ReplaceAll(fileName, ":", "_")
+		download(url, directory, fileName, info)
+	} else {
+		log.Info("🔴 [录制已结束]")
+	}
+	reconnect = 0
 }
 
 // download
@@ -81,18 +101,30 @@ func download(url string, directory string, fileName string, info RoomInfo) {
 		}
 	}(file)
 
-	log.Infof("🎄 [直播录制已开启][%s] %s", info.LiveTime, info.Title)
+	log.Infof("🎄 [直播录制已开启][%s] %s %d", info.LiveTime, info.Title, reconnect)
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
-		log.Infof("🔴 [录制已结束][%s] %s", info.LiveTime, info.Title)
+		log.Infof(err.Error())
 	}
 
-	// TODO: 上传到COS
 	currentTime := time.Now()
 	formattedTime := currentTime.Format("2006-01-02 15:04:05")
-
-	cos.UploadLocalFile("/wq/live/["+info.LiveTime+"~"+formattedTime+
-		"] ["+info.Title+"].flv", fileName)
+	// 比较直播开始 & 结束时间
+	startTime, _ := time.Parse("2006-01-02 15:04:05", info.LiveTime)
+	endTime, _ := time.Parse("2006-01-02 15:04:05", formattedTime)
+	if endTime.Sub(startTime).Seconds() < 60 {
+		// 执行重连
+		if reconnect < 5 {
+			reconnect++
+			AsyncFun(info.RoomId)
+		} else {
+			log.Infof("🔴 [录制已结束][%s] %s", info.LiveTime, info.Title)
+		}
+	} else {
+		log.Infof("🔴 [录制已结束][%s] %s", info.LiveTime, info.Title)
+		cos.UploadLocalFile("/wq/live/["+info.LiveTime+"~"+formattedTime+
+			"] ["+info.Title+"].flv", fileName)
+	}
 }
 
 // getVideoUrl

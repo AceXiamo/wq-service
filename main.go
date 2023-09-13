@@ -12,7 +12,7 @@ import (
 func main() {
 	log.SetLevel(log.InfoLevel)
 	cos.Init()
-	go live.WsInit(25081972)
+	go live.WsInit(2696287)
 	go countTask()
 
 	r := gin.Default()
