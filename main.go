@@ -1,7 +1,6 @@
 package main
 
 import (
-	_ "github.com/Akegarasu/blivedm-go/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/robfig/cron"
 	log "github.com/sirupsen/logrus"
