@@ -117,7 +117,10 @@ func download(downloadInfo DownloadInfo) {
 		AsyncFun(downloadInfo.RoomInfo.RoomId)
 	} else {
 		log.Infof("🔴 [录制已结束][%s] %s", downloadInfo.RoomInfo.LiveTime, downloadInfo.RoomInfo.Title)
-		cos.UploadLocalFile(getFormattedCosFileName(downloadInfo.RoomInfo.LiveTime, formattedTime, downloadInfo.RoomInfo.Title), downloadInfo.FileName)
+		cos.MultipartUpload(getFormattedCosFileName(downloadInfo.RoomInfo.LiveTime, formattedTime, downloadInfo.RoomInfo.Title), downloadInfo.FileName)
+
+		// 删除本地文件
+		os.Remove(downloadInfo.FileName)
 	}
 }
 

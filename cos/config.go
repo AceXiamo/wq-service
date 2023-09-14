@@ -7,11 +7,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/tencentyun/cos-go-sdk-v5"
 	"gopkg.in/yaml.v3"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"os"
 )
 
 type Cos struct {
@@ -87,102 +85,16 @@ func UploadLocalFile(p string, lp string) {
 // @param p			路径
 // @param lp		本地文件路径
 func MultipartUpload(p string, lp string) {
-	init, _, err := cc.Object.InitiateMultipartUpload(context.Background(), p, nil)
-	if err != nil {
-		fmt.Print(err)
-		panic(err)
+	log.Infof("📦 [COS] 分片上传 %s", p)
+	opt := &cos.MultiUploadOptions{
+		PartSize:       100,
+		ThreadPoolSize: 2,
 	}
-	UploadID := init.UploadID
-	log.Infof("📦 [COS] 分片上传 [%s]", p)
-	f, err := os.Open(lp)
-	if err != nil {
-		log.Error(err)
-		panic(err)
-	}
-	defer f.Close()
-
-	var parts []string
-	var offset int64 = 0
-	var fileChunk = 200 * 1024 * 1024
-	fileSize, err := f.Seek(0, io.SeekEnd)
-	if err != nil {
-		log.Error(err)
-		panic(err)
-	}
-
-	for offset < fileSize {
-		_, err := f.Seek(offset, io.SeekStart)
-		if err != nil {
-			log.Error(err)
-			panic(err)
-		}
-		remainingSize := fileSize - offset
-		if remainingSize < int64(fileChunk) {
-			fileChunk = int(remainingSize)
-		}
-		buffer := make([]byte, fileChunk)
-		n, err := f.Read(buffer)
-		if err != nil {
-			log.Error(err)
-			panic(err)
-		}
-
-		directory := "./parts"
-		if _, err := os.Stat(directory); os.IsNotExist(err) {
-			err := os.MkdirAll(directory, 0755)
-			if err != nil {
-				log.Println("无法创建文件夹:", err)
-				return
-			}
-		}
-
-		// save to file, path: ./parts/xxx
-		partPath := fmt.Sprintf("%s/%d", directory, offset)
-		os.Create(partPath)
-		err = ioutil.WriteFile(partPath, buffer[:n], 0644)
-		if err != nil {
-			log.Error(err)
-			panic(err)
-		}
-		parts = append(parts, partPath)
-		offset += int64(n)
-	}
-
-	var result = make(map[int]string)
-	for i, path := range parts {
-		partNumber := i + 1
-		f, _ = os.Open(path)
-		content, _ := ioutil.ReadAll(f)
-		log.Infof("📦 [COS] 上传分片 %d", partNumber)
-		resp, err := cc.Object.UploadPart(context.Background(), p, UploadID, partNumber, bytes.NewReader(content), nil)
-		if err != nil {
-			log.Error(err)
-			panic(err)
-		}
-		ETag := resp.Header.Get("ETag")
-		result[partNumber] = ETag
-	}
-	opt := &cos.CompleteMultipartUploadOptions{}
-	for i := 0; i < len(result); i++ {
-		opt.Parts = append(opt.Parts, cos.Object{
-			PartNumber: i,
-			ETag:       result[i],
-		})
-	}
-	_, _, err = cc.Object.CompleteMultipartUpload(
-		context.Background(), p, UploadID, opt,
+	_, _, err := cc.Object.Upload(
+		context.Background(), p, lp, opt,
 	)
 	if err != nil {
 		panic(err)
 	}
-
-	// 删除分片
-	log.Infof("📦 [COS] Upload Complete, Delete Parts")
-	for _, path := range parts {
-		err = os.Remove(path)
-		if err != nil {
-			log.Error(err)
-			panic(err)
-		}
-	}
+	log.Infof("📦 [COS] 上传完毕 %s", p)
 }
