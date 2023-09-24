@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 	"wq-service/core"
+	"wq-service/cos"
 
 	"github.com/tidwall/gjson"
 )
@@ -122,10 +123,9 @@ func download(downloadInfo DownloadInfo, wait *sync.WaitGroup) {
 		AsyncFun(downloadInfo.RoomInfo.RoomId, wait)
 	} else {
 		core.Log.Infof("🔴 [录制已结束][%s] %s", downloadInfo.RoomInfo.LiveTime, downloadInfo.RoomInfo.Title)
-		//cos.MultipartUpload(getFormattedCosFileName(downloadInfo.RoomInfo.LiveTime, formattedTime, downloadInfo.RoomInfo.Title), downloadInfo.FileName)
-		//
-		//// 删除本地文件
-		//os.Remove(downloadInfo.FileName)
+		cos.MultipartUpload(getFormattedCosFileName(downloadInfo.RoomInfo.LiveTime, formattedTime, downloadInfo.RoomInfo.Title), downloadInfo.FileName)
+		// 删除本地文件
+		os.Remove(downloadInfo.FileName)
 	}
 }
 
