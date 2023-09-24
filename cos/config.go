@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"wq-service/core"
 )
 
 type Cos struct {
@@ -38,7 +39,7 @@ func Init() {
 	}
 	cosConfig = &config.Cos
 
-	log.Infof("📦 [COS] %s", config.Cos.Bucket)
+	core.Log.Infof("📦 [COS] %s", config.Cos.Bucket)
 	CreateCosClient()
 }
 
@@ -60,7 +61,7 @@ func CreateCosClient() {
 // @param p 		路径
 // @param bts		文件内容
 func UploadFile(p string, bts []byte) {
-	log.Infof("📦 [COS] 上传文件 %s", p)
+	core.Log.Infof("📦 [COS] 上传文件 %s", p)
 	_, err := cc.Object.Put(context.Background(), p, bytes.NewReader(bts), nil)
 	if err != nil {
 		return
@@ -72,7 +73,7 @@ func UploadFile(p string, bts []byte) {
 // @param p			路径
 // @param lp		本地文件路径
 func UploadLocalFile(p string, lp string) {
-	log.Infof("📦 [COS] 上传文件 %s", p)
+	core.Log.Infof("📦 [COS] 上传文件 %s", p)
 	_, err := cc.Object.PutFromFile(context.Background(), p, lp, nil)
 	if err != nil {
 		fmt.Print(err)
@@ -85,7 +86,7 @@ func UploadLocalFile(p string, lp string) {
 // @param p			路径
 // @param lp		本地文件路径
 func MultipartUpload(p string, lp string) {
-	log.Infof("📦 [COS] 分片上传 %s", p)
+	core.Log.Infof("📦 [COS] 分片上传 %s", p)
 	opt := &cos.MultiUploadOptions{
 		PartSize:       100,
 		ThreadPoolSize: 2,
@@ -96,5 +97,5 @@ func MultipartUpload(p string, lp string) {
 	if err != nil {
 		panic(err)
 	}
-	log.Infof("📦 [COS] 上传完毕 %s", p)
+	core.Log.Infof("📦 [COS] 上传完毕 %s", p)
 }

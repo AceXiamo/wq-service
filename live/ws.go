@@ -1,27 +1,33 @@
 package live
 
 import (
-	"fmt"
 	"github.com/AceXiamo/blivedm-go/client"
 	"github.com/AceXiamo/blivedm-go/message"
-	log "github.com/sirupsen/logrus"
+	"sync"
+	"wq-service/core"
 )
 
 func WsInit(roomId int) {
+	var recWait *sync.WaitGroup
 	c := client.NewClient(roomId)
-	c.SetCookie("innersign=0; buvid3=89F570D1-D749-CF39-6A12-BE76BE61D53D84804infoc; b_nut=1694670984; i-wanna-go-back=-1; b_ut=7; header_theme_version=undefined; home_feed_column=5; browser_resolution=1682-1035; buvid4=4384B3A0-4F6C-66F3-082B-81995E56978E85417-023091413-7EM3j908NRxUR5Sh9HbJAg%3D%3D; SESSDATA=b7b8e0a0%2C1710223016%2C31493%2A91CjBreQtVgqMrN67z4in9okuj0lmbxy8rzM2c1qdTFU2pqqm2nWg1dvFobEvS4ja3evMSVmtOemNLUjBySWkyS0lZcVdKSVMzUlFab2ZzcjludVJ5Tk1feG9hOHR0cGpuMXdHLTQxUFJNREw3dFU1UWtYd3pEbzlmQ2c2dUU0NUcwMnhWX0FmczZnIIEC; bili_jct=9c0c3c1cdcaa9f091e8f6e158d439628; DedeUserID=294797622; DedeUserID__ckMd5=816d40f025ba6c9b; sid=pop4daie; LIVE_BUVID=AUTO2216946710371855")
+	c.SetCookie("innersign=0; buvid3=97561807-211A-540C-E3DD-C200FC96C96790512infoc; b_nut=1695294290; i-wanna-go-back=-1; b_ut=7; b_lsid=9B310CC103_18AB769FD74; _uuid=2DC56B5D-C6510-EBF10-FB4C-454843109377991322infoc; header_theme_version=undefined; buvid_fp=9c10ace3750b7383ddd0cb507769b9b8; home_feed_column=5; browser_resolution=1745-845; buvid4=64D58A5E-89A5-F48B-8D9B-0EEB402AEA3491366-023092119-0mOPZbinCsODOwiPFAHr0w%3D%3D; SESSDATA=36c6a3b1%2C1710846326%2Ce7500%2A91CjDqXvB35UDvU1o42juYpfbCoFTf5sHP0LmZJD6vNGLXC7JrgqE1zmCAqF6fvDzSk-sSVk9uZEtNWElhb0RGX0diQjdxSzdYclhLZXJlM3V3MU56S0REUjZ3RFhmaE1pelphUm1ZejMydktlUTlEaW9OSkotSnJSRll5T0Q1RXUydGxmMjVTTDVnIIEC; bili_jct=488244f4f6cdf27c3a17f0341431e00f; DedeUserID=294797622; DedeUserID__ckMd5=816d40f025ba6c9b; sid=7brfmna0; PVID=1; bp_video_offset_294797622=839262392332320777; LIVE_BUVID=AUTO9616952943328378")
 	c.OnLive(func(live *message.Live) {
-		go DoRecord(c.RoomID)
+		recWait = &sync.WaitGroup{}
+		recWait.Add(1)
+		go DoRecord(c.RoomID, recWait)
 	})
 	c.OnDanmaku(func(danmaku *message.Danmaku) {
-		if danmaku.Type == message.EmoticonDanmaku {
-		} else {
-			fmt.Printf("[%d] %s: %s\n", danmaku.Sender.Uid, danmaku.Sender.Uname, danmaku.Content)
+		core.Log.Infof("💬 [%d] %s: %s", danmaku.Sender.Uid, danmaku.Sender.Uname, danmaku.Content)
+	})
+	c.RegisterCustomEventHandler("PREPARING", func(s string) {
+		if recWait != nil {
+			recWait.Done()
 		}
+		core.Log.Infof("🟡 [推流停止] %d", c.RoomID)
 	})
 
 	err := c.Start()
 	if err != nil {
-		log.Fatal(err)
+		core.Log.Fatal(err)
 	}
 }

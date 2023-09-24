@@ -9,10 +9,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"wq-service/core"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
-	"wq-service/cos"
 )
 
 const (
@@ -21,7 +20,7 @@ const (
 	userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
 )
 
-var reconnectMax = 5
+var reconnectMax = 20
 
 type RoomInfo struct {
 	RoomId      int    `json:"room_id"`
@@ -44,15 +43,14 @@ var lck sync.Mutex
 // DoRecord
 // @Description: 录制视频
 // @param roomId 	房间号
-func DoRecord(roomId int) {
+func DoRecord(roomId int, wait *sync.WaitGroup) {
 	lck.Lock()
 	defer lck.Unlock()
-
-	log.Infof("🟢 [直播开始] %d", roomId)
-	AsyncFun(roomId)
+	core.Log.Infof("🟢 [直播开始] %d", roomId)
+	AsyncFun(roomId, wait)
 }
 
-func AsyncFun(roomId int) {
+func AsyncFun(roomId int, wait *sync.WaitGroup) {
 	info := getInfo(roomId)
 	if info.LiveStatus == 1 {
 		url := getVideoUrl(roomId)
@@ -64,26 +62,26 @@ func AsyncFun(roomId int) {
 			FileName:  fileName,
 			RoomInfo:  info,
 		}
-		go download(downloadInfo)
+		go download(downloadInfo, wait)
 	} else {
-		log.Info("🔴 [录制已结束]")
+		core.Log.Info("🔴 [录制已结束]")
 	}
 }
 
 // download
 // @Description: 下载视频
 // @param downloadInfo	下载信息
-func download(downloadInfo DownloadInfo) {
+func download(downloadInfo DownloadInfo, wait *sync.WaitGroup) {
 	req, err := http.NewRequest("GET", downloadInfo.Url, nil)
 	if err != nil {
-		log.Println("创建请求失败:", err)
+		core.Log.Println("创建请求失败:", err)
 		return
 	}
 	req.Header.Add("User-Agent", userAgent)
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Println("发送请求失败:", err)
+		core.Log.Println("发送请求失败:", err)
 		return
 	}
 	defer resp.Body.Close()
@@ -91,21 +89,28 @@ func download(downloadInfo DownloadInfo) {
 	if _, err := os.Stat(downloadInfo.Directory); os.IsNotExist(err) {
 		err := os.MkdirAll(downloadInfo.Directory, 0755)
 		if err != nil {
-			log.Println("无法创建文件夹:", err)
+			core.Log.Println("无法创建文件夹:", err)
 			return
 		}
 	}
+
 	file, err := os.Create(downloadInfo.FileName)
 	if err != nil {
-		log.Println("无法创建文件:", err)
+		core.Log.Println("无法创建文件:", err)
 		return
 	}
 	defer file.Close()
 
-	log.Infof("🎄 [直播录制已开启][%s] %s", downloadInfo.RoomInfo.LiveTime, downloadInfo.RoomInfo.Title)
+	go func() {
+		wait.Wait()
+		core.Log.Infof("🔴 [录制已结束] - 直播结束")
+		resp.Body.Close()
+	}()
+
+	//core.Log.Infof("🎄 [直播录制已开启][%s] %s", downloadInfo.RoomInfo.LiveTime, downloadInfo.RoomInfo.Title)
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
-		log.Infof(err.Error())
+		core.Log.Infof(err.Error())
 	}
 
 	currentTime := time.Now()
@@ -114,13 +119,13 @@ func download(downloadInfo DownloadInfo) {
 	endTime, _ := time.Parse("2006-01-02 15:04:05", formattedTime)
 	if endTime.Sub(startTime).Seconds() < 60 && reconnectMax > 0 {
 		reconnectMax--
-		AsyncFun(downloadInfo.RoomInfo.RoomId)
+		AsyncFun(downloadInfo.RoomInfo.RoomId, wait)
 	} else {
-		log.Infof("🔴 [录制已结束][%s] %s", downloadInfo.RoomInfo.LiveTime, downloadInfo.RoomInfo.Title)
-		cos.MultipartUpload(getFormattedCosFileName(downloadInfo.RoomInfo.LiveTime, formattedTime, downloadInfo.RoomInfo.Title), downloadInfo.FileName)
-
-		// 删除本地文件
-		os.Remove(downloadInfo.FileName)
+		core.Log.Infof("🔴 [录制已结束][%s] %s", downloadInfo.RoomInfo.LiveTime, downloadInfo.RoomInfo.Title)
+		//cos.MultipartUpload(getFormattedCosFileName(downloadInfo.RoomInfo.LiveTime, formattedTime, downloadInfo.RoomInfo.Title), downloadInfo.FileName)
+		//
+		//// 删除本地文件
+		//os.Remove(downloadInfo.FileName)
 	}
 }
 
@@ -139,7 +144,7 @@ func getVideoUrl(roomId int) string {
 	resp, _ := client.Do(req)
 
 	if resp.StatusCode != 200 {
-		log.Println("获取视频地址失败:", resp.Status)
+		core.Log.Println("获取视频地址失败:", resp.Status)
 		return ""
 	}
 	defer resp.Body.Close()
@@ -168,7 +173,7 @@ func getInfo(roomId int) RoomInfo {
 
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != 200 {
-		log.Println("获取视频地址失败:", resp.Status)
+		core.Log.Println("获取视频地址失败:", resp.Status)
 	} else {
 		v := gjson.ParseBytes(body)
 		d := v.Get("data").String()

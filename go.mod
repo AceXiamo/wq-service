@@ -1,9 +1,9 @@
 module wq-service
 
-go 1.20
+go 1.19
 
 require (
-	github.com/AceXiamo/blivedm-go v1.5.2
+	github.com/AceXiamo/blivedm-go v1.5.3
 	github.com/sirupsen/logrus v1.8.1
 	github.com/tencentyun/cos-go-sdk-v5 v0.7.43
 	github.com/tidwall/gjson v1.16.0
