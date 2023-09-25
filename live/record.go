@@ -21,7 +21,7 @@ const (
 	userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
 )
 
-var reconnectMax = 20
+var reconnectMax = 10
 
 type RoomInfo struct {
 	RoomId      int    `json:"room_id"`
@@ -118,7 +118,7 @@ func download(downloadInfo DownloadInfo, wait *sync.WaitGroup) {
 	formattedTime := currentTime.Format("2006-01-02 15:04:05")
 	startTime, _ := time.Parse("2006-01-02 15:04:05", downloadInfo.RoomInfo.LiveTime)
 	endTime, _ := time.Parse("2006-01-02 15:04:05", formattedTime)
-	if endTime.Sub(startTime).Seconds() < 60 && reconnectMax > 0 {
+	if endTime.Sub(startTime).Seconds() < 180 && reconnectMax > 0 {
 		reconnectMax--
 		AsyncFun(downloadInfo.RoomInfo.RoomId, wait)
 	} else {
@@ -126,6 +126,7 @@ func download(downloadInfo DownloadInfo, wait *sync.WaitGroup) {
 		cos.MultipartUpload(getFormattedCosFileName(downloadInfo.RoomInfo.LiveTime, formattedTime, downloadInfo.RoomInfo.Title), downloadInfo.FileName)
 		// 删除本地文件
 		os.Remove(downloadInfo.FileName)
+		reconnectMax = 10
 	}
 }
 
