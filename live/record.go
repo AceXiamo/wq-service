@@ -21,7 +21,7 @@ const (
 	userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
 )
 
-var reconnectMax = 10
+var reconnectMax = 20
 
 type RoomInfo struct {
 	RoomId      int    `json:"room_id"`
@@ -108,7 +108,7 @@ func download(downloadInfo DownloadInfo, wait *sync.WaitGroup) {
 		resp.Body.Close()
 	}()
 
-	//core.Log.Infof("🎄 [直播录制已开启][%s] %s", downloadInfo.RoomInfo.LiveTime, downloadInfo.RoomInfo.Title)
+	core.Log.Infof("🎄 [直播录制已开启][%s] %d", downloadInfo.RoomInfo.Title, reconnectMax)
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
 		core.Log.Infof(err.Error())
@@ -118,15 +118,21 @@ func download(downloadInfo DownloadInfo, wait *sync.WaitGroup) {
 	formattedTime := currentTime.Format("2006-01-02 15:04:05")
 	startTime, _ := time.Parse("2006-01-02 15:04:05", downloadInfo.RoomInfo.LiveTime)
 	endTime, _ := time.Parse("2006-01-02 15:04:05", formattedTime)
-	if endTime.Sub(startTime).Seconds() < 180 && reconnectMax > 0 {
+	offset := endTime.Sub(startTime).Seconds()
+	if offset < 120 && reconnectMax > 0 {
 		reconnectMax--
 		AsyncFun(downloadInfo.RoomInfo.RoomId, wait)
 	} else {
-		core.Log.Infof("🔴 [录制已结束][%s] %s", downloadInfo.RoomInfo.LiveTime, downloadInfo.RoomInfo.Title)
-		cos.MultipartUpload(getFormattedCosFileName(downloadInfo.RoomInfo.LiveTime, formattedTime, downloadInfo.RoomInfo.Title), downloadInfo.FileName)
-		// 删除本地文件
-		os.Remove(downloadInfo.FileName)
-		reconnectMax = 10
+		if offset > 120 {
+			core.Log.Infof("🔴 [录制已结束][%s] %s", downloadInfo.RoomInfo.LiveTime, downloadInfo.RoomInfo.Title)
+			cos.MultipartUpload(getFormattedCosFileName(downloadInfo.RoomInfo.LiveTime, formattedTime, downloadInfo.RoomInfo.Title), downloadInfo.FileName)
+			// 删除本地文件
+			os.Remove(downloadInfo.FileName)
+		} else {
+			core.Log.Infof("🔴 [录制已结束] 直播时长不足2分钟，不进行上传")
+			os.Remove(downloadInfo.FileName)
+		}
+		reconnectMax = 20
 	}
 }
 
