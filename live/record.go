@@ -21,7 +21,7 @@ const (
 	userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
 )
 
-var reconnectMax = 20
+var reconnectMax = 30
 
 type RoomInfo struct {
 	RoomId      int    `json:"room_id"`
@@ -123,6 +123,7 @@ func download(downloadInfo DownloadInfo, wait *sync.WaitGroup) {
 		reconnectMax--
 		AsyncFun(downloadInfo.RoomInfo.RoomId, wait)
 	} else {
+		core.Log.Infof("间隔时间: %f", offset)
 		if offset > 120 {
 			core.Log.Infof("🔴 [录制已结束][%s] %s", downloadInfo.RoomInfo.LiveTime, downloadInfo.RoomInfo.Title)
 			cos.MultipartUpload(getFormattedCosFileName(downloadInfo.RoomInfo.LiveTime, formattedTime, downloadInfo.RoomInfo.Title), downloadInfo.FileName)
@@ -132,7 +133,7 @@ func download(downloadInfo DownloadInfo, wait *sync.WaitGroup) {
 			core.Log.Infof("🔴 [录制已结束] 直播时长不足2分钟，不进行上传")
 			os.Remove(downloadInfo.FileName)
 		}
-		reconnectMax = 20
+		reconnectMax = 30
 	}
 }
 
