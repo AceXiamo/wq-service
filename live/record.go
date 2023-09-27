@@ -2,6 +2,7 @@ package live
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -69,6 +70,17 @@ func AsyncFun(roomId int, wait *sync.WaitGroup) {
 	}
 }
 
+type LoggingWriter struct {
+	Writer io.Writer
+}
+
+func (lw *LoggingWriter) Write(p []byte) (n int, err error) {
+	// 在写入数据之前打印数据块内容
+	fmt.Printf("Writing data: %s\n", len(p))
+	// 将数据写入实际的Writer
+	return lw.Writer.Write(p)
+}
+
 // download
 // @Description: 下载视频
 // @param downloadInfo	下载信息
@@ -109,7 +121,8 @@ func download(downloadInfo DownloadInfo, wait *sync.WaitGroup) {
 	}()
 
 	core.Log.Infof("🎄 [直播录制已开启][%s] %d", downloadInfo.RoomInfo.Title, reconnectMax)
-	_, err = io.Copy(file, resp.Body)
+	writer := &LoggingWriter{Writer: file}
+	_, err = io.Copy(writer, resp.Body)
 	if err != nil {
 		core.Log.Infof(err.Error())
 	}

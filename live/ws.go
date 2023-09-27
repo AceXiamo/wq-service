@@ -16,9 +16,9 @@ func WsInit(roomId int) {
 		recWait.Add(1)
 		go DoRecord(c.RoomID, recWait)
 	})
-	c.OnDanmaku(func(danmaku *message.Danmaku) {
-		core.Log.Infof("💬 [%d] %s: %s", danmaku.Sender.Uid, danmaku.Sender.Uname, danmaku.Content)
-	})
+	//c.OnDanmaku(func(danmaku *message.Danmaku) {
+	//	core.Log.Infof("💬 [%d] %s: %s", danmaku.Sender.Uid, danmaku.Sender.Uname, danmaku.Content)
+	//})
 	c.RegisterCustomEventHandler("PREPARING", func(s string) {
 		if recWait != nil {
 			recWait.Done()
